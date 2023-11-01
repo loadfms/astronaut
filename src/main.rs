@@ -5,6 +5,8 @@ use std::error::Error;
 use structopt::StructOpt;
 use url::Url;
 
+mod regex_patterns;
+
 #[derive(StructOpt)]
 struct Cli {
     #[structopt(parse(try_from_str = Url::parse))]
@@ -39,17 +41,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let js_response = reqwest::get(js_url.as_str()).await?;
             let js_content = js_response.text().await?;
 
-            let re = Regex::new(r#"(?i)(\w*key):\s*"([^"]+)""#).unwrap();
-
-            for secret in re.captures_iter(&js_content) {
-                if let (Some(secret_name), Some(secret_value)) = (secret.get(1), secret.get(2)) {
-                    println!(
-                        "Secret Found in {}: {} = {}",
-                        js_name,
-                        secret_name.as_str(),
-                        secret_value.as_str()
-                    );
-                    secrets_found = true;
+            for pattern_str in &regex_patterns::patterns::PATTERNS {
+                let re = Regex::new(pattern_str)?;
+                for secret in re.captures_iter(&js_content) {
+                    if let (Some(secret_name), Some(secret_value)) = (secret.get(1), secret.get(2))
+                    {
+                        println!(
+                            "Secret Found in {}: {} = {}",
+                            js_name,
+                            secret_name.as_str(),
+                            secret_value.as_str()
+                        );
+                        secrets_found = true;
+                    }
                 }
             }
         }
